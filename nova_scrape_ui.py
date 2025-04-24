@@ -1,4 +1,3 @@
-
 import tkinter as tk
 from tkinter import filedialog, scrolledtext, messagebox
 import requests
@@ -30,12 +29,18 @@ def scrape_and_store():
             text = soup.get_text(separator=' ', strip=True)
 
             domain = urlparse(url).netloc.replace(".", "_")
-            scraped_data.append({
+            output = {
                 "source": url,
                 "domain": domain,
                 "content": text,
                 "tags": tags
-            })
+            }
+
+            os.makedirs("prompts", exist_ok=True)
+            with open(f"prompts/{domain}.json", "w", encoding="utf-8") as f:
+                json.dump(output, f, ensure_ascii=False, indent=2)
+
+            scraped_data.append(output)
         except Exception as e:
             messagebox.showerror("Scrape Error", f"Failed to scrape {url}\n{e}")
 
@@ -48,20 +53,31 @@ def update_preview():
         preview_box.insert(tk.END, f"{item['source']}\nTags: {', '.join(item['tags'])}\nPreview: {item['content'][:300]}...\n\n")
     preview_box.config(state='disabled')
 
-def save_as_json():
-    if not scraped_data:
-        messagebox.showwarning("No Data", "Scrape some URLs first!")
-        return
-    file = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
-    if file:
-        with open(file, "w", encoding="utf-8") as f:
-            json.dump(scraped_data, f, ensure_ascii=False, indent=2)
-        messagebox.showinfo("Saved", f"Training JSON saved to:\n{file}")
+def select_json_files():
+    files = filedialog.askopenfilenames(filetypes=[("JSON files", "*.json")])
+    combined = []
+    for file in files:
+        try:
+            with open(file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    combined.extend(data)
+                elif isinstance(data, dict):
+                    combined.append(data)
+        except Exception as e:
+            messagebox.showerror("File Error", f"Failed to read {file}\n{e}")
+
+    if combined:
+        file = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+        if file:
+            with open(file, "w", encoding="utf-8") as f:
+                json.dump(combined, f, ensure_ascii=False, indent=2)
+            messagebox.showinfo("Saved", f"Combined training JSON saved to:\n{file}")
 
 # UI
 app = tk.Tk()
 app.title("NovaScrape – LLM Training Harvester")
-app.geometry("900x620")
+app.geometry("900x720")
 app.configure(bg=bg_color)
 
 # Header
@@ -85,10 +101,10 @@ tags_entry.pack(side='left', padx=10)
 # Buttons
 btn_frame = tk.Frame(app, bg=bg_color)
 btn_frame.pack(pady=10)
-run_btn = tk.Button(btn_frame, text="Scrape URLs", command=scrape_and_store, bg=fg_color, fg=bg_color, font=font_main)
+run_btn = tk.Button(btn_frame, text="Scrape URLs to JSON", command=scrape_and_store, bg=fg_color, fg=bg_color, font=font_main)
 run_btn.grid(row=0, column=0, padx=10)
-save_btn = tk.Button(btn_frame, text="Save as JSON", command=save_as_json, bg=fg_color, fg=bg_color, font=font_main)
-save_btn.grid(row=0, column=1, padx=10)
+select_btn = tk.Button(btn_frame, text="Combine JSON Files to Dataset", command=select_json_files, bg=fg_color, fg=bg_color, font=font_main)
+select_btn.grid(row=0, column=1, padx=10)
 
 # Preview Box
 preview_label = tk.Label(app, text="Preview (first 300 chars):", fg=fg_color, bg=bg_color, font=font_main)
